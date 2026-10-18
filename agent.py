@@ -3,13 +3,19 @@
 One loop, three tools (get_order, check_policy, draft_reply). Every step is written to
 the trace: step number, tool, arguments, result summary, duration in ms and cost.
 
-THE FIX FOR THE WEEK 04 AUDIT lives in one switch, DEDUPE_REPEATED_CALLS below.
-  False -> the baseline loop: it executes whatever the model asks for, repeated or not.
-  True  -> a repeated identical (tool, args) call is not executed again; the loop logs a
-           `loop_guard` step instead and hands the cached result back to the model.
+THE FIXES FOR THE WEEK 04 AUDIT live in two switches below.
+  DEDUPE_REPEATED_CALLS = True
+      A repeated identical (tool, args) call is not executed again; the loop logs a
+      `loop_guard` step instead and hands the cached result back to the model.
+  REJECT_PLACEHOLDER_DRAFTS = True
+      A draft containing placeholder text such as "[Insert status from system]" is not
+      accepted; the loop logs a `loop_guard` step and sends the model back to look the
+      data up before it drafts again.
+Set both to False to get the baseline loop.
 """
 
 import json
+import re
 import time
 
 import fixtures
@@ -18,8 +24,10 @@ from llm import cost_of
 TODAY = "Thursday 10 September 2026 (2026-09-10)"
 MAX_STEPS = 8
 
-# ---- the switch you flip for the "after" run (see README) --------------------------
-DEDUPE_REPEATED_CALLS = False
+# ---- the switches you flip for the "after" run (see README) ------------------------
+DEDUPE_REPEATED_CALLS = True
+REJECT_PLACEHOLDER_DRAFTS = True
+PLACEHOLDER = re.compile(r"\[[^\]]*(insert|placeholder|todo|tbd)[^\]]*\]", re.I)
 # -------------------------------------------------------------------------------------
 
 SYSTEM_PROMPT = f"""You are Merik's customer-support assistant.
@@ -160,6 +168,17 @@ def run_agent(sender, message, llm, tracer=None, scenario=0, dedupe=None, max_st
 
         # 2. the run ends here
         if tool == "draft_reply":
+            # 2a. placeholder guard: bounce a draft that still contains "[Insert ...]" text
+            if REJECT_PLACEHOLDER_DRAFTS and PLACEHOLDER.search(str(args.get("message", ""))):
+                tracer.log(**base, tool="loop_guard",
+                           args={"suppressed": "draft_reply",
+                                 "reason": "placeholder text in draft"},
+                           result="draft rejected: contains placeholder text", ms=ms())
+                messages.append({"role": "user", "content":
+                                 "Your draft contains placeholder text such as [Insert ...]. "
+                                 "Look up the real data with get_order or check_policy "
+                                 "first, then call draft_reply again."})
+                continue
             esc = bool(args.get("escalate", False))
             note = args.get("handover_note") if esc else None
             reply = {"message": str(args.get("message", "")), "escalate": esc,
