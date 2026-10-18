@@ -26,7 +26,7 @@ def main(argv=None):
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--provider", default=os.getenv("PROVIDER", "gemini"),
-                    choices=["gemini", "anthropic"])
+                    choices=["gemini", "anthropic","groq"])
     ap.add_argument("--model", default=None)
     ap.add_argument("--label", default="before", help="before | after | anything")
     ap.add_argument("--only", default="", help="comma-separated scenario ids, e.g. 18,20")

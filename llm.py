@@ -97,10 +97,54 @@ class GeminiLLM:
         )
 
 
+class GroqLLM:
+    """Groq uses an OpenAI-style chat API: the system prompt is just the first message."""
+
+    def __init__(self, model=None):
+        import groq
+        from groq import Groq  # pip install groq
+
+        self.BadRequestError = groq.BadRequestError
+        self.client = Groq()  # reads GROQ_API_KEY
+        self.model = model or os.getenv("MODEL", "llama-3.3-70b-versatile")
+        # JSON mode makes the model return a valid JSON object every time.
+        # Set GROQ_JSON_MODE=0 in .env if your chosen model does not support it.
+        self.json_mode = os.getenv("GROQ_JSON_MODE", "1") != "0"
+        # Reasoning models spend tokens thinking before they answer, so allow plenty.
+        self.max_tokens = int(os.getenv("GROQ_MAX_TOKENS", "4000"))
+
+    def complete(self, system, messages):
+        kwargs = {}
+        if self.json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+        try:
+            r = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "system", "content": system}] + messages,
+                temperature=0,
+                max_tokens=self.max_tokens,
+                **kwargs,
+            )
+        except self.BadRequestError as e:
+            body = getattr(e, "body", None) or {}
+            err = body.get("error", body) if isinstance(body, dict) else {}
+            if err.get("code") == "json_validate_failed":
+                # Let the loop log it as an invalid_output step and retry.
+                return LLMOutput(err.get("failed_generation") or "", 0, 0)
+            raise
+        u = r.usage
+        return LLMOutput(
+            r.choices[0].message.content or "",
+            getattr(u, "prompt_tokens", 0) or 0,
+            getattr(u, "completion_tokens", 0) or 0,
+        )
+
 def make_llm(provider, model=None):
     provider = (provider or "").lower()
     if provider == "anthropic":
         return AnthropicLLM(model)
     if provider == "gemini":
         return GeminiLLM(model)
-    raise SystemExit(f"Unknown provider {provider!r}. Use 'anthropic' or 'gemini'.")
+    if provider == "groq":
+        return GroqLLM(model)
+    raise SystemExit(f"Unknown provider {provider!r}. Use 'anthropic', 'gemini' or 'groq'.")
