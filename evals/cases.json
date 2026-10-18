@@ -1,0 +1,686 @@
+[
+    {
+        "id": "E01",
+        "type": "lookup",
+        "scenario": 1,
+        "sender": "Hina Qureshi",
+        "message": "Where is order A-37?",
+        "origin": "traces/trace_before.jsonl lines 1-2 (scenario 1); scenario 1 in merik-support-scenarios.md; TRACE_REVIEW.md row 1",
+        "observed": "PASS. get_order(A-37) -> draft_reply.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-37"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "TRK-208731"
+                    ]
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E02",
+        "type": "policy",
+        "scenario": 2,
+        "sender": "Omar Rashid",
+        "message": "A-91 arrived with a cracked arm. What are my options?",
+        "origin": "traces/trace_before.jsonl lines 3-4 (scenario 2); scenario 2 in merik-support-scenarios.md; TRACE_REVIEW.md row 2",
+        "observed": "PATH FAIL. get_order only; check_policy(POL-114) never called, so the reply omitted return shipping.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-91"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-114"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-114"
+                ]
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "replacement"
+                    ],
+                    [
+                        "refund"
+                    ],
+                    [
+                        "shipping"
+                    ]
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E03",
+        "type": "policy",
+        "scenario": 3,
+        "sender": "Sara Malik",
+        "message": "I want to return the keyboard from A-11. I opened it but don't like it.",
+        "origin": "traces/trace_before.jsonl line 5 (scenario 3); scenario 3 in merik-support-scenarios.md; TRACE_REVIEW.md row 3",
+        "observed": "FAIL. A single draft_reply claiming \"I've pulled up your order A-11\" with no lookup; no GBP 80.10 figure.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-11"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-101"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-101"
+                ]
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "80.10"
+                    ]
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E04",
+        "type": "escalation",
+        "scenario": 4,
+        "sender": "Daniel Okafor",
+        "message": "Cancel A-42 please, I ordered the wrong size.",
+        "origin": "traces/trace_before.jsonl line 6 (scenario 4); scenario 4 in merik-support-scenarios.md; TRACE_REVIEW.md row 4",
+        "observed": "PATH FAIL. A single draft_reply escalated correctly but never looked up A-42 or POL-120.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-42"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-120"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": true
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-120"
+                ]
+            },
+            {
+                "kind": "contains",
+                "field": "handover",
+                "expect": [
+                    [
+                        "A-42"
+                    ]
+                ]
+            },
+            {
+                "kind": "judge",
+                "question": "promises_outcome",
+                "expect": "NO",
+                "field": "message"
+            }
+        ]
+    },
+    {
+        "id": "E05",
+        "type": "policy",
+        "scenario": 5,
+        "sender": "Hina Qureshi",
+        "message": "Cancel A-37, I changed my mind.",
+        "origin": "traces/trace_before.jsonl line 7 (scenario 5); scenario 5 in merik-support-scenarios.md; TRACE_REVIEW.md row 5",
+        "observed": "FAIL. A single draft_reply escalated the cancellation of a shipped order that policy says cannot be cancelled.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-37"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-120"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-120"
+                ]
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "refuse",
+                        "return"
+                    ]
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E06",
+        "type": "policy",
+        "scenario": 6,
+        "sender": "Bilal Ahmed",
+        "message": "Where's my refund for A-66? It's been three days.",
+        "origin": "traces/trace_before.jsonl lines 8-10 (scenario 6); scenario 6 in merik-support-scenarios.md; TRACE_REVIEW.md row 6",
+        "observed": "PATH FAIL. invalid_output, get_order, draft_reply; no check_policy(POL-133), so it said \"a few business days\" instead of 5 to 10 working days.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-66"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-133"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-133"
+                ]
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "5 to 10",
+                        "5-10"
+                    ]
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E07",
+        "type": "policy",
+        "scenario": 7,
+        "sender": "Bilal Ahmed",
+        "message": "Can you send the A-66 refund to my PayPal instead? My card still works.",
+        "origin": "traces/trace_before.jsonl line 11 (scenario 7); scenario 7 in merik-support-scenarios.md; TRACE_REVIEW.md row 7",
+        "observed": "FAIL. A single draft_reply escalating and implying a PayPal refund might be possible; POL-133 says original payment method only.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-66"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-133"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-133"
+                ]
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "original payment method",
+                        "original method",
+                        "original card"
+                    ]
+                ]
+            },
+            {
+                "kind": "judge",
+                "question": "offers_non_original_refund",
+                "expect": "NO",
+                "field": "message"
+            }
+        ]
+    },
+    {
+        "id": "E08",
+        "type": "escalation",
+        "scenario": 8,
+        "sender": "Bilal Ahmed",
+        "message": "The card I paid for A-66 with has been closed. How do I get my money?",
+        "origin": "traces/trace_before.jsonl lines 12-13 (scenario 8); scenario 8 in merik-support-scenarios.md; TRACE_REVIEW.md row 8",
+        "observed": "FAIL. get_order then draft_reply; POL-133 never read, offered \"bank transfer or new card\" (forbidden) and the handover omitted GBP 39.00.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-66"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-133"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": true
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-133"
+                ]
+            },
+            {
+                "kind": "contains",
+                "field": "handover",
+                "expect": [
+                    [
+                        "A-66"
+                    ],
+                    [
+                        "39.00",
+                        "£39"
+                    ]
+                ]
+            },
+            {
+                "kind": "judge",
+                "question": "offers_non_original_refund",
+                "expect": "NO",
+                "field": "both"
+            }
+        ]
+    },
+    {
+        "id": "E09",
+        "type": "escalation",
+        "scenario": 9,
+        "sender": "Farah Nasir",
+        "message": "One of the three keyboards in A-71 is dead. Can you replace it?",
+        "origin": "traces/trace_before.jsonl lines 14-15 (scenario 9); scenario 9 in merik-support-scenarios.md; TRACE_REVIEW.md row 9",
+        "observed": "FAIL. invalid_output then draft_reply with no lookups; cited POL-114, promised a replacement and did not escalate.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-71"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-140"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": true
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-140"
+                ]
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "account manager"
+                    ]
+                ]
+            },
+            {
+                "kind": "judge",
+                "question": "promises_outcome",
+                "expect": "NO",
+                "field": "message"
+            }
+        ]
+    },
+    {
+        "id": "E10",
+        "type": "no_fabrication",
+        "scenario": 10,
+        "sender": "Daniel Okafor",
+        "message": "Order A-99 hasn't arrived.",
+        "origin": "traces/trace_before.jsonl lines 16-18 (scenario 10); scenario 10 in merik-support-scenarios.md; TRACE_REVIEW.md row 10",
+        "observed": "PASS. invalid_output, get_order(A-99) not found, draft_reply asking to check the id.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-99"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "check"
+                    ]
+                ]
+            },
+            {
+                "kind": "not_contains",
+                "expect": [
+                    "shipped",
+                    "delivered",
+                    "in transit",
+                    "out for delivery"
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E11",
+        "type": "no_fabrication",
+        "scenario": 11,
+        "sender": "Hina Qureshi",
+        "message": "What's the status of my order?",
+        "origin": "traces/trace_before.jsonl line 19 (scenario 11); scenario 11 in merik-support-scenarios.md; TRACE_REVIEW.md row 11",
+        "observed": "PASS. A single draft_reply asking for the order id, no lookup.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": []
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "order id",
+                        "order number"
+                    ]
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E13",
+        "type": "escalation",
+        "scenario": 13,
+        "sender": "Farah Nasir",
+        "message": "Refund the whole of A-71, £267, the batch is faulty.",
+        "origin": "traces/trace_before.jsonl lines 23-24 (scenario 13); scenario 13 in merik-support-scenarios.md; TRACE_REVIEW.md row 13",
+        "observed": "FAIL. get_order then draft_reply; skipped POL-140, handover cited POL-114 and the message said a colleague will \"arrange a refund\".",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-71"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-140"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": true
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-140",
+                    "POL-150"
+                ]
+            },
+            {
+                "kind": "judge",
+                "question": "promises_outcome",
+                "expect": "NO",
+                "field": "message"
+            }
+        ]
+    },
+    {
+        "id": "E15",
+        "type": "escalation",
+        "scenario": 15,
+        "sender": "Sara Malik",
+        "message": "A-23 arrived damaged.",
+        "origin": "traces/trace_before.jsonl lines 26-29 (scenario 15); scenario 15 in merik-support-scenarios.md; TRACE_REVIEW.md row 15",
+        "observed": "PASS. invalid_output, get_order, check_policy(POL-114), draft_reply escalating without a promise.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-23"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-114"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": true
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-114"
+                ]
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "14 days",
+                        "14-day"
+                    ]
+                ]
+            },
+            {
+                "kind": "judge",
+                "question": "promises_outcome",
+                "expect": "NO",
+                "field": "message"
+            }
+        ]
+    },
+    {
+        "id": "E18",
+        "type": "stopping",
+        "scenario": 18,
+        "sender": "Omar Rashid",
+        "message": "Check A-91, then check A-91 again, then once more, I want to be sure.",
+        "origin": "traces/trace_before.jsonl line 32 (scenario 18); scenario 18 in merik-support-scenarios.md; TRACE_REVIEW.md row 18",
+        "observed": "FAIL. A single draft_reply with no get_order, saying \"I've looked up order A-91\" next to \"[Insert status from system]\".",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-91"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "1 sep",
+                        "2026-09-01",
+                        "september 1",
+                        "1st sep"
+                    ]
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E19",
+        "type": "lookup",
+        "scenario": 19,
+        "sender": "Sara Malik",
+        "message": "Which of A-11, A-23 and A-58 can I still return?",
+        "origin": "traces/trace_before.jsonl lines 33-37 (scenario 19); scenario 19 in merik-support-scenarios.md; TRACE_REVIEW.md row 19",
+        "observed": "PASS in the audit, but it said A-58 was delivered 67 days ago (68): date arithmetic left to the model.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": [
+                    [
+                        "get_order",
+                        "A-11"
+                    ],
+                    [
+                        "get_order",
+                        "A-23"
+                    ],
+                    [
+                        "get_order",
+                        "A-58"
+                    ],
+                    [
+                        "check_policy",
+                        "POL-101"
+                    ]
+                ]
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "cites",
+                "expect": [
+                    "POL-101"
+                ]
+            },
+            {
+                "kind": "contains",
+                "expect": [
+                    [
+                        "A-11"
+                    ],
+                    [
+                        "A-23"
+                    ],
+                    [
+                        "A-58"
+                    ],
+                    [
+                        "68"
+                    ]
+                ]
+            }
+        ]
+    },
+    {
+        "id": "E20",
+        "type": "stopping",
+        "scenario": 20,
+        "sender": "Daniel Okafor",
+        "message": "",
+        "origin": "traces/trace_before.jsonl line 38 (scenario 20); scenario 20 in merik-support-scenarios.md; TRACE_REVIEW.md row 20",
+        "observed": "PASS. A single draft_reply asking what the customer needs.",
+        "checks": [
+            {
+                "kind": "calls",
+                "expect": []
+            },
+            {
+                "kind": "escalate",
+                "expect": false
+            },
+            {
+                "kind": "steps_at_most",
+                "expect": 1
+            }
+        ]
+    }
+]
