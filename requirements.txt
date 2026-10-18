@@ -1,0 +1,5 @@
+# Install only the one you use:
+#   pip install anthropic       (Anthropic / Claude)
+#   pip install google-genai    (Google Gemini)
+anthropic
+google-genai
