@@ -4,7 +4,7 @@ Audit of my own support agent against the 20 scenarios in `merik-support-scenari
 
 - Before the fix: `traces/trace_before.jsonl` (replies and automatic flags in `traces/replies_before.json`)
 - After the fix: `traces/trace_after.jsonl`
-- Provider: Groq, model: (fill in the `MODEL` value from your `.env`). One complete run of all 20 scenarios with the fix switched off.
+- Provider: Groq, model: (fill in the `MODEL` value from your `.env`). One complete run of all 20 scenarios with both fix switches off.
 
 **How I judged.** I read the steps in the trace first and the reply second. A scenario passes only if the path is sound (the right tools, no redundant or repeated calls, one clean `draft_reply`) and the reply is right (cites the policy, promises nothing the agent cannot do, leaks nothing, invents nothing). A trace line counts as a "step"; `invalid_output` steps are model outputs that were not a valid action.
 
@@ -45,24 +45,33 @@ PATH FAIL means the reply was acceptable but the path to it was not. FAIL means 
 
 ## 3. Failure modes the loop does not handle
 
-**A. Nothing requires the agent to look anything up before it replies.** The loop accepts a `draft_reply` as the first and only step. Trace: scenario 3 step 1, scenario 5 step 1, scenario 7 step 1, scenario 16 step 1 and scenario 18 step 1 are a lone `draft_reply`. Scenario 4 step 1 and scenario 9 step 2 do the same. Scenarios 2 (step 2), 6 (step 3) and 8 (step 2) reach `draft_reply` without the policy lookup. The result is wrong remedies and wrong escalations (scenarios 5, 7, 8, 9).
+These are still unhandled after my fixes. Every citation is a step in
+`traces/trace_before.jsonl`, with the line number of that step in the file.
 
-**B. Invalid model output is only retried, never handled.** The loop logs an `invalid_output` step and asks again. Trace: step 1 of scenarios 6, 9, 10, 12 and 15. Each one costs a wasted model call and several seconds (scenario 9 took 16.8 s in total), and in scenario 9 the very next step was a bad draft. There is no repair, no limit on consecutive invalid outputs and no fallback to escalation.
+| Failure mode | Why the loop does not handle it | Trace that shows it |
+|---|---|---|
+| **A. No lookup is required before a reply.** The agent can answer, escalate or promise something without reading the order or the policy. | `run_agent` accepts a `draft_reply` as the first step. It never checks that `get_order` or `check_policy` ran. | `traces/trace_before.jsonl`: scenario 3 step 1 (line 5: `draft_reply` only, claims "I've pulled up your order A-11"); scenario 5 step 1 (line 7: escalates a cancellation of a shipped order, never looked it up); scenario 7 step 1 (line 11); scenario 9 step 2 (line 15: promises a replacement, no lookups). Scenario 2 step 2 (line 4) and scenario 8 step 2 (line 13) go to `draft_reply` without `check_policy(POL-114)` and `check_policy(POL-133)`. |
+| **B. Invalid model output is retried, not handled.** | The loop logs an `invalid_output` step and asks again. It does not repair the output, cap consecutive failures or fall back to escalation. It also records no tokens or cost for the failed call. | `traces/trace_before.jsonl`, step 1 of scenarios 6 (line 8), 9 (line 14), 10 (line 16), 12 (line 20) and 15 (line 26). Each is `not a JSON action: ''` (an empty reply from the provider) with `tokens_in` 0, `tokens_out` 0 and `ms` between 751 and 8001. In scenario 9 the next step (step 2, line 15) is a bad draft that promises a replacement. |
+| **D. No ownership check in code.** | `get_order` returns any order to any sender, so another customer's record enters the model's context. Only the prompt stops a leak. | `traces/trace_before.jsonl`, scenario 12 step 2 (line 21): `get_order(A-91)` returns `A-91 \| Omar Rashid \| delivered \| £64.50` in a run for Daniel Okafor. The step 3 reply (line 22) did not leak, but nothing in the loop would have stopped it. |
+| **F. Date arithmetic is left to the model.** | The loop passes `TODAY` in the prompt and trusts the model to count days. | `traces/trace_before.jsonl`, scenario 19 steps 1–5 (lines 33–37): the draft at step 5 (line 37) says A-58 was delivered 67 days ago; it is 68. The conclusion is still right, but the figure is wrong. |
 
-**C. The text of a draft is never checked before it ends the run.** Placeholder text and claims of actions that never happened go straight to the customer. Trace: scenario 18 step 1 ("[Insert status from system]" and "I've looked up order A-91" with no lookup) and scenario 3 step 1 ("I've pulled up your order A-11" with no lookup).
+Failure modes the loop did not handle before, and now does: **C** (placeholder or
+fabricated drafts, scenario 18 step 1, line 32) by `REJECT_PLACEHOLDER_DRAFTS`, and **E**
+(repeated identical tool calls) by `DEDUPE_REPEATED_CALLS`. See section 4.
 
-**D. No ownership check in code.** The loop hands the model any order record that `get_order` returns, whoever asked. Trace: scenario 12 step 2 puts Omar's record in the context of a run for Daniel. It declined this time, but nothing in the loop would have stopped a leak.
+## 4. The failure modes I fixed
 
-**E. No detection of repeated identical tool calls.** The loop executes whatever the model asks for. This is reproduced deterministically by `test_repeat_call.py` (a scripted model issuing `get_order(A-91)` three times). It did not happen in my real run: scenario 18 failed differently (failure mode C), so I cannot cite a real trace for it.
-
-## 4. The failure mode I fixed
+Both fixes are switches at the top of `agent.py`, and both are on for the after-run.
 
 **Fixed: E, repeated identical tool calls**, reproduced by scenario 18 and by `test_repeat_call.py`.
 
-- **Change:** `DEDUPE_REPEATED_CALLS = True` in `agent.py`. A repeated identical `(tool, args)` call is no longer executed. The loop logs a `loop_guard` step instead (so the trace still shows exactly one real `get_order`) and returns the cached result to the model.
+- **Change:** `DEDUPE_REPEATED_CALLS = True`. A repeated identical `(tool, args)` call is no longer executed. The loop logs a `loop_guard` step instead (so the trace still shows exactly one real `get_order`) and returns the cached result to the model.
 - **Reproducing test:** `python -m unittest test_repeat_call`. With the switch off, `test_default_loop_issues_one_get_order` fails with "get_order issued 3 times, expected 1"; with the switch on it passes.
 
-(Optional, if you also added the placeholder guard: **C is also fixed** by `REJECT_PLACEHOLDER_DRAFTS = True`, which rejects a draft containing `[Insert …]`-style text and sends the model back to look the data up. Scenario 18 step 1 is the trace that shows it.)
+**Fixed: C, placeholder or fabricated drafts**, reproduced by scenario 18 (`trace_before.jsonl` step 1, line 32).
+
+- **What the before trace shows:** the only step is a `draft_reply` whose message says "I've looked up order A-91" and contains "[Insert status from system]", with no `get_order` call before it.
+- **Change:** `REJECT_PLACEHOLDER_DRAFTS = True`. A draft containing placeholder text such as `[Insert ...]` is rejected: the loop logs a `loop_guard` step and sends the model back to look the data up before it drafts again.
 
 ## 5. Before / after
 
@@ -74,4 +83,4 @@ Fill this in after `python run_scenarios.py --label after` and `python summarize
 
 Notes to write once you have the after trace:
 - The model is not deterministic, so other scenarios may change between runs. List any whose verdict changed, for better or worse.
-- If scenario 18 still shows no `get_order` call after the fix, say so: the repeated-call guard only helps when the model repeats a call, which is what `test_repeat_call.py` shows.
+- If scenario 18 still shows no `get_order` call after the fixes, say so: the repeated-call guard only helps when the model repeats a call, which is what `test_repeat_call.py` shows.
